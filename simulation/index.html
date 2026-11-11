@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4-DOF 아크릴 로봇 암 시뮬레이터</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { min-height: 100vh; background: #d8dde5; color: #1f2933; padding: 18px; }
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    background: #eef1f5;
+    border: 1px solid #c3cad4;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 20px 44px rgba(32,42,56,0.18);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid #c3cad4;
+  }
+  h1 { font-size: 15px; font-weight: 600; color: #26313f; }
+  .editor { display: flex; flex-direction: column; }
+  .viewport { min-width: 0; background: #cfd6df; }
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 560px;
+    background: radial-gradient(circle at 50% 35%, #f2f5f8 0, #dce3eb 58%, #cdd6e0 100%);
+    overflow: hidden;
+  }
+  .canvas-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(82, 100, 124, 0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(82, 100, 124, 0.12) 1px, transparent 1px);
+    background-size: 56px 56px;
+    pointer-events: none;
+  }
+  canvas { width: 100%; height: 560px; display: block; position: relative; z-index: 1; }
+  .details {
+    background: #f5f7fa;
+    border-top: 1px solid #c3cad4;
+  }
+  .panel-title { display: none; }
+  .controls {
+    padding: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 210px;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .control-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 9px 12px;
+    align-content: start;
+    padding: 11px;
+    background: #ffffff;
+    border: 1px solid #d9dee7;
+    border-radius: 8px;
+  }
+  .control-group.actions {
+    grid-template-columns: 1fr;
+  }
+  .group-title {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 18px;
+    color: #26313f;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .group-subtitle {
+    color: #7a8797;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 44px;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .lbl { grid-column: 1 / -1; font-size: 11px; color: #526070; }
+  input[type=range] { width: 100%; min-width: 0; accent-color: #43a2ff; }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: #2563eb; }
+  .val {
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 44px;
+    text-align: right;
+    color: #26313f;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .btns { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: center; }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 30px;
+    font-size: 12px;
+    color: #526070;
+  }
+  button {
+    min-height: 32px;
+    padding: 7px 11px;
+    font-size: 12px;
+    color: #26313f;
+    border: 1px solid #b7c0cc;
+    background: #ffffff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover { background: #e8edf3; }
+  button.active { color: #ffffff; border-color: #2563eb; background: #2563eb; }
+  .ee {
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #2563eb;
+    margin-left: auto;
+  }
+  .hint { font-size: 11px; color: #667486; line-height: 1.45; }
+  .statusbar {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 12px;
+    border-top: 1px solid #c3cad4;
+    color: #667486;
+    font-size: 11px;
+  }
+  .motor-monitor {
+    padding: 0 12px 12px;
+  }
+  .motor-panel {
+    background: #ffffff;
+    border: 1px solid #d9dee7;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .motor-panel .group-title {
+    color: #26313f;
+  }
+  .motor-panel .group-subtitle {
+    color: #7a8797;
+  }
+  .motor-dashboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 170px;
+    gap: 14px;
+    margin-top: 10px;
+    align-items: stretch;
+  }
+  .motor-chart-wrap {
+    position: relative;
+    min-height: 220px;
+    border: 1px solid #d9dee7;
+    border-radius: 6px;
+    overflow: hidden;
+    background:
+      linear-gradient(#eef2f7 1px, transparent 1px),
+      linear-gradient(90deg, #f3f6fa 1px, transparent 1px),
+      #ffffff;
+    background-size: 100% 44px, 72px 100%, auto;
+  }
+  #motorChart {
+    width: 100%;
+    height: 220px;
+    display: block;
+  }
+  .motor-readouts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .motor-meter {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 44px;
+    gap: 8px;
+    align-items: center;
+    min-height: 34px;
+    color: #26313f;
+    font-size: 11px;
+  }
+  .meter-name {
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .meter-track {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf1f6;
+  }
+  .meter-fill {
+    width: calc(var(--level, 0) * 100%);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+  }
+  .meter-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #526070;
+    text-align: right;
+  }
+  .motor-caption {
+    margin-top: 10px;
+    color: #667486;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  @media (max-width: 860px) {
+    body { padding: 10px; }
+    .controls { grid-template-columns: 1fr; }
+    .control-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .control-group.actions { grid-template-columns: 1fr; }
+    .motor-dashboard { grid-template-columns: 1fr; }
+    .motor-readouts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .motor-meter { grid-template-columns: 1fr; gap: 5px; }
+    .meter-value { text-align: left; }
+    canvas { height: 460px; }
+    .canvas-wrap { min-height: 460px; }
+  }
+  @media (max-width: 560px) {
+    .controls, .control-group { grid-template-columns: 1fr; }
+    .motor-readouts { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>4-DOF Face Tracking Rig</h1>
+    <span class="ee" id="eePos">—</span>
+  </div>
+  <div class="editor">
+    <main class="viewport">
+      <div class="canvas-wrap">
+        <canvas id="c"></canvas>
+      </div>
+      <div class="statusbar">
+        <span>드래그: 시점 회전</span>
+        <span>스크롤: 줌</span>
+      </div>
+    </main>
+    <aside class="details">
+      <div class="panel-title">Details · Joint Controls</div>
+      <div class="controls">
+        <section class="control-group">
+          <div class="group-title">Robot <span class="group-subtitle">motors</span></div>
+          <div class="row">
+            <span class="lbl">J1 베이스</span>
+            <input type="range" id="j1" min="0" max="360" value="0" step="1">
+            <span id="j1v" class="val">0°</span>
+          </div>
+          <div class="row">
+            <span class="lbl">J2 lift</span>
+            <input type="range" id="j2" min="-30" max="80" value="25" step="1">
+            <span id="j2v" class="val">25°</span>
+          </div>
+          <div class="row">
+            <span class="lbl">J3 crank</span>
+            <input type="range" id="j3" min="220" max="350" value="260" step="1">
+            <span id="j3v" class="val">260°</span>
+          </div>
+          <div class="row">
+            <span class="lbl">J4 폰 방향</span>
+            <input type="range" id="j4" min="-90" max="90" value="0" step="1">
+            <span id="j4v" class="val">0°</span>
+          </div>
+          <div class="row">
+            <span class="lbl">폰 틸트</span>
+            <input type="range" id="jg" min="-80" max="80" value="0" step="1">
+            <span id="jgv" class="val">0°</span>
+          </div>
+        </section>
+        <section class="control-group">
+          <div class="group-title">Person <span class="group-subtitle">target</span></div>
+          <label class="toggle-row">
+            <input type="checkbox" id="faceOn" checked>
+            <span>사람 표시</span>
+          </label>
+          <div class="row">
+            <span class="lbl">사람 X</span>
+            <input type="range" id="faceX" min="-2.4" max="2.4" value="-1.45" step="0.01">
+            <span id="faceXv" class="val">-1.45</span>
+          </div>
+          <div class="row">
+            <span class="lbl">사람 높이</span>
+            <input type="range" id="faceY" min="0.0" max="1.0" value="0.28" step="0.01">
+            <span id="faceYv" class="val">0.28</span>
+          </div>
+          <div class="row">
+            <span class="lbl">사람 거리</span>
+            <input type="range" id="faceZ" min="-2.0" max="2.0" value="0.52" step="0.01">
+            <span id="faceZv" class="val">0.52</span>
+          </div>
+          <div class="row">
+            <span class="lbl">사람 방향</span>
+            <input type="range" id="faceYaw" min="-180" max="180" value="60" step="1">
+            <span id="faceYawv" class="val">60°</span>
+          </div>
+          <div class="row">
+            <span class="lbl">고개 기울기</span>
+            <input type="range" id="faceRoll" min="-45" max="45" value="0" step="1">
+            <span id="faceRollv" class="val">0°</span>
+          </div>
+        </section>
+        <section class="control-group actions">
+          <div class="group-title">Run <span class="group-subtitle">modes</span></div>
+          <div class="btns">
+            <button id="btnBoot">휴대폰 부팅</button>
+            <button id="btnFaceTrack">얼굴 추적 OFF</button>
+            <button id="btnPersonOrbit">사람 궤도 데모 ▶</button>
+            <button id="btnReset">리셋</button>
+            <button id="btnAnim">자동 데모 ▶</button>
+          </div>
+          <p class="hint">추적 모드에서는 모터값이 목표 방향으로 천천히 이동합니다.</p>
+        </section>
+      </div>
+      <section class="motor-monitor">
+        <div class="motor-panel">
+          <div class="group-title">Estimated Torque <span class="group-subtitle">model output</span></div>
+          <div class="motor-dashboard">
+            <div class="motor-chart-wrap">
+              <canvas id="motorChart"></canvas>
+            </div>
+            <div class="motor-readouts">
+              <div class="motor-meter" style="--accent: #38bdf8">
+                <span class="meter-name">J1</span>
+                <span class="meter-track"><span class="meter-fill" id="j1bar"></span></span>
+                <span class="meter-value" id="j1barv">0.00</span>
+              </div>
+              <div class="motor-meter" style="--accent: #22c55e">
+                <span class="meter-name">J2</span>
+                <span class="meter-track"><span class="meter-fill" id="j2bar"></span></span>
+                <span class="meter-value" id="j2barv">0.00</span>
+              </div>
+              <div class="motor-meter" style="--accent: #f97316">
+                <span class="meter-name">J3</span>
+                <span class="meter-track"><span class="meter-fill" id="j3bar"></span></span>
+                <span class="meter-value" id="j3barv">0.00</span>
+              </div>
+              <div class="motor-meter" style="--accent: #a855f7">
+                <span class="meter-name">J4</span>
+                <span class="meter-track"><span class="meter-fill" id="j4bar"></span></span>
+                <span class="meter-value" id="j4barv">0.00</span>
+              </div>
+              <div class="motor-meter" style="--accent: #ef4444">
+                <span class="meter-name">Tilt</span>
+                <span class="meter-track"><span class="meter-fill" id="jgbar"></span></span>
+                <span class="meter-value" id="jgbarv">0.00</span>
+              </div>
+            </div>
+          </div>
+          <p class="motor-caption">실측 센서값이 아닌 기구 모델 기반 추정치입니다. 단위: kg·cm</p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const canvas = document.getElementById('c');
+const W = canvas.parentElement.clientWidth || 900, H = canvas.clientHeight || 560;
+canvas.width = W * devicePixelRatio;
+canvas.height = H * devicePixelRatio;
+canvas.style.width = W + 'px';
+canvas.style.height = H + 'px';
+const motorChart = document.getElementById('motorChart');
+const motorCtx = motorChart.getContext('2d');
+const NM_TO_KG_CM = 10.19716213;
+const TORQUE_GRAPH_MAX = 15;
+const motorSpecs = [
+  { id: 'j1', label: 'J1', capacity: TORQUE_GRAPH_MAX, color: '#0284c7' },
+  { id: 'j2', label: 'J2', capacity: TORQUE_GRAPH_MAX, color: '#16a34a' },
+  { id: 'j3', label: 'J3', capacity: TORQUE_GRAPH_MAX, color: '#ea580c' },
+  { id: 'j4', label: 'J4', capacity: TORQUE_GRAPH_MAX, color: '#7c3aed' },
+  { id: 'jg', label: 'Tilt', capacity: TORQUE_GRAPH_MAX, color: '#dc2626' }
+];
+const motorHistory = motorSpecs.reduce((history, spec) => {
+  history[spec.id] = [];
+  return history;
+}, {});
+let motorGraphFrame = 0;
+let torquePrev = null;
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(W, H);
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, W / H, 0.01, 100);
+
+scene.fog = new THREE.Fog(0xdce3eb, 5.0, 10.0);
+scene.add(new THREE.AmbientLight(0xffffff, 0.38));
+const sun = new THREE.DirectionalLight(0xffffff, 0.98);
+sun.position.set(5, 9, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdcecff, 0xaab3bf, 0.34));
+
+const matAcrylic = new THREE.MeshStandardMaterial({ color: 0x6f7a86, roughness: 0.42, metalness: 0.02 });
+const matServo = new THREE.MeshStandardMaterial({ color: 0x2080c4, roughness: 0.35, metalness: 0.15 });
+const matPivot = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.3, metalness: 0.6 });
+const matFloor = new THREE.MeshStandardMaterial({ color: 0xe4e8ee, roughness: 0.92 });
+const matPhone = new THREE.MeshStandardMaterial({ color: 0x1f2329, roughness: 0.28, metalness: 0.45 });
+const matPhoneBack = new THREE.MeshStandardMaterial({ color: 0xd7d9dd, roughness: 0.32, metalness: 0.2 });
+const matScreen = new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 0.08, metalness: 0.18 });
+const matGlass = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.06, metalness: 0.05 });
+const matBootScreen = new THREE.MeshStandardMaterial({ color: 0x05070a, emissive: 0x05070a, emissiveIntensity: 0.25, roughness: 0.08, metalness: 0.08 });
+const matHomeScreen = new THREE.MeshStandardMaterial({ color: 0x020203, emissive: 0x020203, emissiveIntensity: 0.28, roughness: 0.1, metalness: 0.02 });
+const matBootGlow = new THREE.MeshStandardMaterial({ color: 0x93c5fd, emissive: 0x2563eb, emissiveIntensity: 0.75, transparent: true, opacity: 0.82, roughness: 0.08, metalness: 0.02 });
+const matLogo = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.35, roughness: 0.25, metalness: 0.0 });
+const matIconA = new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x15803d, emissiveIntensity: 0.25, roughness: 0.18, metalness: 0.0 });
+const matIconB = new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xc2410c, emissiveIntensity: 0.2, roughness: 0.18, metalness: 0.0 });
+const matIconC = new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0x7e22ce, emissiveIntensity: 0.25, roughness: 0.18, metalness: 0.0 });
+const matCameraBump = new THREE.MeshStandardMaterial({ color: 0xc5c9cf, roughness: 0.3, metalness: 0.25 });
+const matLens = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.12, metalness: 0.5 });
+const matSkin = new THREE.MeshStandardMaterial({ color: 0xf0c7a8, roughness: 0.48, metalness: 0.0 });
+const matHair = new THREE.MeshStandardMaterial({ color: 0x2b1f1a, roughness: 0.55, metalness: 0.0 });
+const matFaceMark = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.35, metalness: 0.0 });
+const matDetect = new THREE.LineBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.82 });
+const matEdge = new THREE.LineBasicMaterial({ color: 0x26313f, transparent: true, opacity: 0.45 });
+
+const deg = d => d * Math.PI / 180;
+const radToDeg = r => r * 180 / Math.PI;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const easeInOut = t => {
+  const p = clamp(t, 0, 1);
+  return p * p * (3 - 2 * p);
+};
+const oneShotSine = t => Math.sin(clamp(t, 0, 1) * Math.PI);
+const rightThenLeftRoll = t => {
+  const p = clamp(t, 0, 1);
+  if (p < 0.5) return Math.sin(p * Math.PI * 2);
+  return -Math.sin((p - 0.5) * Math.PI * 2);
+};
+const doubleRightThenLeftRoll = t => {
+  const p = clamp(t, 0, 1);
+  if (p < 0.5) return rightThenLeftRoll(p * 2);
+  return rightThenLeftRoll((p - 0.5) * 2);
+};
+
+function box(w, h, d, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), matEdge);
+  m.add(e);
+  return m;
+}
+function textPlane(text, w, h, fg = '#ffffff', bg = 'rgba(0, 0, 0, 0)', flipVertical = false, flipHorizontal = false) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = Math.max(256, Math.round(c.width * (h / w)));
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (flipHorizontal) {
+    ctx.translate(c.width, 0);
+    ctx.scale(-1, 1);
+  }
+  if (flipVertical) {
+    ctx.translate(0, c.height);
+    ctx.scale(1, -1);
+  }
+  if (bg !== 'rgba(0, 0, 0, 0)') {
+    ctx.fillStyle = bg;
+    ctx.roundRect(14, 14, c.width - 28, c.height - 28, 24);
+    ctx.fill();
+  }
+  const lines = text.split('\n');
+  ctx.fillStyle = fg;
+  ctx.font = '900 112px -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif';
+  const maxWidth = c.width - 52;
+  const maxHeight = c.height - 36;
+  const measuredWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
+  const fontSize = Math.min(176, Math.floor(112 * Math.min(maxWidth / measuredWidth, maxHeight / (lines.length * 118))));
+  const lineHeight = fontSize * 1.03;
+  ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Noto Sans KR", sans-serif`;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.18)';
+  ctx.shadowBlur = 8;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const startY = c.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, c.width / 2, startY + i * lineHeight + 2);
+  });
+  const texture = new THREE.CanvasTexture(c);
+  texture.anisotropy = 4;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+function cyl(r, h, mat, seg) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg || 14), mat);
+  m.castShadow = true;
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), matEdge);
+  m.add(e);
+  return m;
+}
+function sphere(r, mat, seg) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg || 24, seg || 24), mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), matFloor);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.25;
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(20, 40, 0x8190a2, 0xb7c0cb);
+grid.position.y = -0.248;
+scene.add(grid);
+
+const basePlate = box(1.6, 0.04, 1.3, matAcrylic);
+basePlate.position.y = 0.02;
+scene.add(basePlate);
+
+const faceTarget = new THREE.Group();
+faceTarget.position.set(-1.45, 0.28, 0.52);
+faceTarget.rotation.y = deg(60);
+scene.add(faceTarget);
+const shoulders = box(0.34, 0.08, 0.18, matAcrylic);
+shoulders.position.set(0, -0.05, 0);
+faceTarget.add(shoulders);
+const neck = cyl(0.045, 0.12, matSkin, 18);
+neck.position.set(0, 0.04, 0);
+faceTarget.add(neck);
+const faceHead = new THREE.Group();
+faceTarget.add(faceHead);
+const head = sphere(0.14, matSkin, 28);
+head.position.set(0, 0.19, 0);
+faceHead.add(head);
+const hair = sphere(0.145, matHair, 28);
+hair.scale.set(1.0, 0.58, 0.86);
+hair.position.set(0, 0.27, -0.015);
+faceHead.add(hair);
+[[-0.045, 0.205], [0.045, 0.205]].forEach(p => {
+  const eye = sphere(0.012, matFaceMark, 12);
+  eye.position.set(p[0], p[1], 0.128);
+  faceHead.add(eye);
+});
+const nose = cyl(0.008, 0.035, matSkin, 12);
+nose.rotation.x = Math.PI / 2;
+nose.position.set(0, 0.175, 0.145);
+faceHead.add(nose);
+const mouth = box(0.055, 0.006, 0.006, matFaceMark);
+mouth.position.set(0, 0.13, 0.132);
+faceHead.add(mouth);
+const detectFrame = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(0.36, 0.36, 0.01)),
+  matDetect
+);
+detectFrame.position.set(0, 0.18, 0.17);
+faceHead.add(detectFrame);
+
+[[-0.65, -0.5], [0.65, -0.5], [-0.65, 0.5], [0.65, 0.5]].forEach(p => {
+  const f = cyl(0.04, 0.14, matAcrylic, 10);
+  f.position.set(p[0], -0.07, p[1]); scene.add(f);
+  const ft = cyl(0.055, 0.025, matAcrylic, 12);
+  ft.position.set(p[0], -0.16, p[1]); scene.add(ft);
+});
+
+const j1Motor = box(0.27, 0.14, 0.27, matServo);
+j1Motor.position.y = 0.05;
+scene.add(j1Motor);
+
+const g_j1 = new THREE.Group();
+g_j1.position.set(0, 0.12, 0);
+scene.add(g_j1);
+
+const turntable = cyl(0.16, 0.04, matAcrylic, 24);
+turntable.position.y = 0.02;
+g_j1.add(turntable);
+
+const bbY = 0.04, bh = 0.36, bWidth = 0.42, bDepth = 0.4, pT = 0.025;
+
+const lp = box(pT, bh, bDepth, matAcrylic);
+lp.position.set(-bWidth / 2 - pT / 2, bbY + bh / 2, 0);
+g_j1.add(lp);
+const rp = box(pT, bh, bDepth, matAcrylic);
+rp.position.set(bWidth / 2 + pT / 2, bbY + bh / 2, 0);
+g_j1.add(rp);
+const xp1 = box(bWidth + 0.04, 0.035, 0.1, matAcrylic);
+xp1.position.set(0, bbY + 0.04, 0.14);
+g_j1.add(xp1);
+const xp2 = box(bWidth + 0.04, 0.035, 0.1, matAcrylic);
+xp2.position.set(0, bbY + 0.04, -0.14);
+g_j1.add(xp2);
+
+const S_y = bbY + bh - 0.04, S_z = 0.10;
+const R_y = bbY + bh - 0.04, R_z = -0.10;
+
+const j2Motor = box(0.10, 0.16, 0.16, matServo);
+j2Motor.position.set(-bWidth / 2 - 0.06, S_y, S_z);
+g_j1.add(j2Motor);
+const j3Motor = box(0.10, 0.16, 0.16, matServo);
+j3Motor.position.set(bWidth / 2 + 0.06, R_y, R_z);
+g_j1.add(j3Motor);
+
+const sPin = cyl(0.022, bWidth + 0.07, matPivot, 12);
+sPin.rotation.z = Math.PI / 2;
+sPin.position.set(0, S_y, S_z);
+g_j1.add(sPin);
+const rPin = cyl(0.022, bWidth + 0.07, matPivot, 12);
+rPin.rotation.z = Math.PI / 2;
+rPin.position.set(0, R_y, R_z);
+g_j1.add(rPin);
+
+const L_arm = 0.45, aT = 0.022, aW = 0.07, aSp = 0.07;
+
+const g_upperArm = new THREE.Group();
+g_upperArm.position.set(0, S_y, S_z);
+g_j1.add(g_upperArm);
+
+const uaL = box(aT, L_arm, aW, matAcrylic);
+uaL.position.set(-aSp / 2 - aT / 2, L_arm / 2, 0); g_upperArm.add(uaL);
+const uaR = box(aT, L_arm, aW, matAcrylic);
+uaR.position.set(aSp / 2 + aT / 2, L_arm / 2, 0); g_upperArm.add(uaR);
+const uaTop = box(aSp + 0.06, 0.03, 0.055, matAcrylic);
+uaTop.position.set(0, L_arm - 0.015, 0); g_upperArm.add(uaTop);
+const uaBot = box(aSp + 0.06, 0.03, 0.055, matAcrylic);
+uaBot.position.set(0, 0.025, 0); g_upperArm.add(uaBot);
+const ePin = cyl(0.020, aSp + 0.08, matPivot, 12);
+ePin.rotation.z = Math.PI / 2;
+ePin.position.set(0, L_arm, 0); g_upperArm.add(ePin);
+
+const L_j3Crank = 0.20, L_j3Rod = 0.42;
+const g_j3Crank = new THREE.Group();
+g_j3Crank.position.set(0, R_y, R_z);
+g_j1.add(g_j3Crank);
+const j3Crank = box(0.034, L_j3Crank, 0.045, matAcrylic);
+j3Crank.position.y = L_j3Crank / 2;
+g_j3Crank.add(j3Crank);
+const j3CrankPin = cyl(0.018, 0.12, matPivot, 12);
+j3CrankPin.rotation.z = Math.PI / 2;
+j3CrankPin.position.y = L_j3Crank;
+g_j3Crank.add(j3CrankPin);
+
+const g_j3Rod = new THREE.Group();
+g_j1.add(g_j3Rod);
+const j3Rod = box(0.024, L_j3Rod, 0.04, matAcrylic);
+g_j3Rod.add(j3Rod);
+const j3RodPinA = cyl(0.016, 0.11, matPivot, 12);
+j3RodPinA.rotation.z = Math.PI / 2;
+j3RodPinA.position.y = -L_j3Rod / 2;
+g_j3Rod.add(j3RodPinA);
+const j3RodPinB = cyl(0.016, 0.11, matPivot, 12);
+j3RodPinB.rotation.z = Math.PI / 2;
+j3RodPinB.position.y = L_j3Rod / 2;
+g_j3Rod.add(j3RodPinB);
+
+const L_fa = 0.5, fT = 0.022, fW = 0.06, fSp = 0.07;
+const g_forearm = new THREE.Group();
+g_j1.add(g_forearm);
+
+const faL = box(fT, L_fa, fW, matAcrylic);
+faL.position.set(-fSp / 2 - fT / 2, L_fa / 2, 0); g_forearm.add(faL);
+const faR2 = box(fT, L_fa, fW, matAcrylic);
+faR2.position.set(fSp / 2 + fT / 2, L_fa / 2, 0); g_forearm.add(faR2);
+const faTop = box(fSp + 0.05, 0.025, 0.05, matAcrylic);
+faTop.position.set(0, L_fa - 0.012, 0); g_forearm.add(faTop);
+const faBot = box(fSp + 0.05, 0.025, 0.05, matAcrylic);
+faBot.position.set(0, 0.012, 0); g_forearm.add(faBot);
+const j3Coupler = box(fSp + 0.07, 0.38, 0.045, matAcrylic);
+j3Coupler.position.set(0, -0.19, 0);
+g_forearm.add(j3Coupler);
+const j3CouplerPin = cyl(0.018, fSp + 0.10, matPivot, 12);
+j3CouplerPin.rotation.z = Math.PI / 2;
+j3CouplerPin.position.set(0, -0.38, 0);
+g_forearm.add(j3CouplerPin);
+
+const g_wrist = new THREE.Group();
+g_wrist.position.set(0, L_fa, 0);
+g_forearm.add(g_wrist);
+
+const j4Motor = box(0.10, 0.085, 0.11, matServo);
+j4Motor.position.set(0, 0.04, 0); g_wrist.add(j4Motor);
+
+const g_phone = new THREE.Group();
+g_phone.position.set(0, 0.075, 0);
+g_wrist.add(g_phone);
+
+const phoneMount = box(0.12, 0.018, 0.085, matAcrylic);
+phoneMount.position.set(0, 0.02, 0);
+g_phone.add(phoneMount);
+const phoneBackClamp = box(0.05, 0.035, 0.10, matAcrylic);
+phoneBackClamp.position.set(0, 0.045, 0);
+g_phone.add(phoneBackClamp);
+const phoneBody = box(0.225, 0.026, 0.345, matPhone);
+phoneBody.position.set(0, 0.072, 0);
+g_phone.add(phoneBody);
+const phoneBack = box(0.205, 0.004, 0.325, matPhoneBack);
+phoneBack.position.set(0, 0.057, 0);
+g_phone.add(phoneBack);
+const phoneScreen = box(0.205, 0.006, 0.322, matScreen);
+phoneScreen.position.set(0, 0.088, 0);
+g_phone.add(phoneScreen);
+const screenGlow = box(0.17, 0.002, 0.26, matGlass);
+screenGlow.position.set(0, 0.092, -0.005);
+g_phone.add(screenGlow);
+const dynamicIsland = box(0.065, 0.004, 0.014, matLens);
+dynamicIsland.position.set(0, 0.096, 0.135);
+g_phone.add(dynamicIsland);
+const earpiece = box(0.032, 0.004, 0.004, matPivot);
+earpiece.position.set(0, 0.099, 0.151);
+g_phone.add(earpiece);
+const sideBtnL = box(0.006, 0.012, 0.055, matPhone);
+sideBtnL.position.set(-0.116, 0.072, 0.035);
+g_phone.add(sideBtnL);
+const sideBtnR = box(0.006, 0.012, 0.07, matPhone);
+sideBtnR.position.set(0.116, 0.072, 0.02);
+g_phone.add(sideBtnR);
+const cameraBump = box(0.075, 0.012, 0.082, matCameraBump);
+cameraBump.position.set(-0.055, 0.048, 0.112);
+g_phone.add(cameraBump);
+[
+  [-0.072, 0.132],
+  [-0.044, 0.104],
+  [-0.072, 0.078]
+].forEach(p => {
+  const ring = cyl(0.014, 0.008, matPhone, 24);
+  ring.position.set(p[0], 0.039, p[1]);
+  g_phone.add(ring);
+  const lens = cyl(0.009, 0.010, matLens, 24);
+  lens.position.set(p[0], 0.033, p[1]);
+  g_phone.add(lens);
+});
+const flash = cyl(0.006, 0.006, matAcrylic, 16);
+flash.position.set(-0.044, 0.035, 0.135);
+g_phone.add(flash);
+const screenNormalArrow = new THREE.ArrowHelper(
+  new THREE.Vector3(0, 1, 0),
+  new THREE.Vector3(0, 0.105, 0),
+  0.28,
+  0x22c55e,
+  0.055,
+  0.03
+);
+g_phone.add(screenNormalArrow);
+const bootLogo = new THREE.Group();
+const logoCore = cyl(0.024, 0.005, matLogo, 28);
+logoCore.position.set(0, 0.099, 0.005);
+bootLogo.add(logoCore);
+const logoLeaf = box(0.018, 0.004, 0.008, matLogo);
+logoLeaf.position.set(0.015, 0.102, 0.034);
+logoLeaf.rotation.y = -0.45;
+bootLogo.add(logoLeaf);
+g_phone.add(bootLogo);
+
+const homeLayer = new THREE.Group();
+[
+  [-0.06, 0.07, matIconA], [0.00, 0.07, matIconB], [0.06, 0.07, matIconC],
+  [-0.06, 0.01, matIconC], [0.00, 0.01, matIconA], [0.06, 0.01, matIconB],
+  [-0.06, -0.05, matIconB], [0.00, -0.05, matIconC], [0.06, -0.05, matIconA]
+].forEach(p => {
+  const icon = box(0.032, 0.004, 0.032, p[2]);
+  icon.position.set(p[0], 0.099, p[1]);
+});
+const dock = box(0.145, 0.003, 0.035, matGlass);
+dock.position.set(0, 0.098, -0.125);
+const teamTitle = textPlane('종설\n4조', 0.205, 0.245, '#050505', 'rgba(255, 255, 255, 0.92)', true, true);
+teamTitle.position.set(0, 0.104, 0.002);
+homeLayer.add(teamTitle);
+g_phone.add(homeLayer);
+
+let phoneState = 'off';
+let phoneBootTimer = null;
+let autoFaceTrack = false;
+
+function applyAngles(j1, j2, j3, j4, phoneTilt) {
+  g_j1.rotation.y = deg(j1);
+  
+  const t2 = deg(j2);
+  const t3 = deg(j3);
+  
+  g_upperArm.rotation.x = t2;
+  const Ey = S_y + L_arm * Math.cos(t2);
+  const Ez = S_z + L_arm * Math.sin(t2);
+  
+  g_j3Crank.rotation.x = t3;
+  const Py = R_y + L_j3Crank * Math.cos(t3);
+  const Pz = R_z + L_j3Crank * Math.sin(t3);
+
+  const couplerY = -0.38;
+  const couplerRadius = Math.abs(couplerY);
+  const dY = Py - Ey;
+  const dZ = Pz - Ez;
+  const d = Math.max(0.0001, Math.hypot(dY, dZ));
+  const a = (couplerRadius * couplerRadius - L_j3Rod * L_j3Rod + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, couplerRadius * couplerRadius - a * a));
+  const uY = dY / d;
+  const uZ = dZ / d;
+  const baseY = Ey + a * uY;
+  const baseZ = Ez + a * uZ;
+  const c1Y = baseY - h * uZ;
+  const c1Z = baseZ + h * uY;
+  const c2Y = baseY + h * uZ;
+  const c2Z = baseZ - h * uY;
+  const useFirst = c1Z < c2Z;
+  const Cy = useFirst ? c1Y : c2Y;
+  const Cz = useFirst ? c1Z : c2Z;
+  const faRot = Math.atan2((Cz - Ez) / couplerY, (Cy - Ey) / couplerY);
+
+  g_forearm.position.set(0, Ey, Ez);
+  g_forearm.rotation.x = faRot;
+
+  g_j3Rod.position.set(0, (Py + Cy) / 2, (Pz + Cz) / 2);
+  g_j3Rod.rotation.x = Math.atan2(Cz - Pz, Cy - Py);
+  
+  g_wrist.rotation.y = 0;
+  g_phone.rotation.set(deg(phoneTilt), deg(j4 + 180), 0);
+  
+  const forearmAngle = Math.PI / 2 - faRot;
+  const Wy = Ey + L_fa * Math.sin(forearmAngle);
+  const Wz = Ez + L_fa * Math.cos(forearmAngle);
+  let distText = '';
+  if (faceTarget.visible) {
+    g_phone.updateWorldMatrix(true, false);
+    const phoneWorld = g_phone.localToWorld(new THREE.Vector3(0, 0.09, 0));
+    const faceWorld = getFaceCenterWorld();
+    const phoneNormal = new THREE.Vector3(0, 1, 0)
+      .applyQuaternion(g_phone.getWorldQuaternion(new THREE.Quaternion()))
+      .normalize();
+    const faceNormal = getFaceNormalWorld();
+    const normalError = radToDeg(Math.acos(clamp(phoneNormal.dot(faceNormal.clone().negate()), -1, 1)));
+    distText = ' D=' + phoneWorld.distanceTo(faceWorld).toFixed(2) + ' Nerr=' + normalError.toFixed(0) + '°';
+  }
+  document.getElementById('eePos').textContent = 'H=' + Wy.toFixed(2) + ' R=' + Math.abs(Wz).toFixed(2) + distText;
+}
+
+let theta = 0.7, phi = 0.42, radius = 3.0;
+function updateCam() {
+  camera.position.set(
+    radius * Math.sin(theta) * Math.cos(phi),
+    radius * Math.sin(phi) + 0.55,
+    radius * Math.cos(theta) * Math.cos(phi)
+  );
+  camera.lookAt(0, 0.6, 0);
+}
+
+let isDrag = false, px = 0, py = 0;
+canvas.addEventListener('mousedown', e => { isDrag = true; px = e.clientX; py = e.clientY; });
+window.addEventListener('mouseup', () => isDrag = false);
+window.addEventListener('mousemove', e => {
+  if (!isDrag) return;
+  theta -= (e.clientX - px) * 0.005;
+  phi = Math.max(0.08, Math.min(1.35, phi - (e.clientY - py) * 0.005));
+  px = e.clientX; py = e.clientY;
+  updateCam();
+});
+canvas.addEventListener('wheel', e => {
+  radius = Math.max(1.5, Math.min(8, radius + e.deltaY * 0.005));
+  updateCam();
+}, { passive: true });
+
+function setPhoneState(state) {
+  phoneState = state;
+  phoneScreen.material = state === 'home' ? matHomeScreen : state === 'booting' ? matBootScreen : matScreen;
+  screenGlow.material = state === 'home' ? matBootGlow : matGlass;
+  screenGlow.visible = state !== 'off';
+  bootLogo.visible = state === 'booting';
+  homeLayer.visible = state === 'home';
+  dynamicIsland.visible = state === 'off';
+  earpiece.visible = state === 'off';
+  document.getElementById('btnBoot').textContent = state === 'off' ? '휴대폰 부팅' : '휴대폰 끄기';
+}
+
+function startPhoneBoot() {
+  clearTimeout(phoneBootTimer);
+  setPhoneState('booting');
+  phoneBootTimer = setTimeout(() => setPhoneState('home'), 2400);
+}
+
+function powerOffPhone() {
+  clearTimeout(phoneBootTimer);
+  phoneBootTimer = null;
+  setPhoneState('off');
+}
+
+function setAutoFaceTrack(on) {
+  autoFaceTrack = on;
+  const btn = document.getElementById('btnFaceTrack');
+  btn.textContent = on ? '얼굴 추적 ON' : '얼굴 추적 OFF';
+  btn.classList.toggle('active', on);
+  if (!on) readSliders();
+}
+
+function setSliderValue(id, value) {
+  document.getElementById(id).value = value;
+}
+
+function getFaceCenterWorld() {
+  faceHead.updateWorldMatrix(true, false);
+  return faceHead.localToWorld(new THREE.Vector3(0, 0.19, 0.14));
+}
+
+function getFaceNormalWorld() {
+  faceHead.updateWorldMatrix(true, false);
+  return new THREE.Vector3(0, 0, 1)
+    .applyQuaternion(faceHead.getWorldQuaternion(new THREE.Quaternion()))
+    .normalize();
+}
+
+function getPhonePoseWorld() {
+  g_phone.updateWorldMatrix(true, false);
+  return {
+    point: g_phone.localToWorld(new THREE.Vector3(0, 0.09, 0)),
+    normal: new THREE.Vector3(0, 1, 0)
+      .applyQuaternion(g_phone.getWorldQuaternion(new THREE.Quaternion()))
+      .normalize()
+  };
+}
+
+function trackingCost(pose, faceWorld, faceNormalWorld) {
+  applyAngles(pose.j1, pose.j2, pose.j3, pose.j4, pose.jg);
+  const phone = getPhonePoseWorld();
+  const desiredPhonePoint = faceWorld.clone().add(faceNormalWorld.clone().multiplyScalar(0.58));
+  const positionCost = phone.point.distanceTo(desiredPhonePoint) * 8.0;
+  const normalCost = 1 - phone.normal.dot(faceNormalWorld.clone().negate());
+  return positionCost + normalCost * 5.0;
+}
+
+function updateFaceTrackingMotors() {
+  if (!autoFaceTrack || !faceTarget.visible) return null;
+
+  const faceWorld = getFaceCenterWorld();
+  const faceNormalWorld = getFaceNormalWorld();
+  const current = {
+    j1: +document.getElementById('j1').value,
+    j2: +document.getElementById('j2').value,
+    j3: +document.getElementById('j3').value,
+    j4: +document.getElementById('j4').value,
+    jg: +document.getElementById('jg').value
+  };
+  const faceRoll = +document.getElementById('faceRoll').value;
+  const directBase = (radToDeg(Math.atan2(faceWorld.x, faceWorld.z)) + 360) % 360;
+  let best = { ...current, j1: directBase, j4: -faceRoll };
+  let bestCost = trackingCost(best, faceWorld, faceNormalWorld);
+  const axes = [
+    ['j1', 34, 0, 360],
+    ['j2', 14, -50, 80],
+    ['j3', 28, 220, 350],
+    ['jg', 12, -22, 22]
+  ];
+
+  for (let pass = 0; pass < 3; pass++) {
+    axes.forEach(axis => {
+      const [key, baseStep, min, max] = axis;
+      const step = baseStep / (pass + 1);
+      [-step, step].forEach(delta => {
+        const candidate = { ...best };
+        candidate[key] = clamp(candidate[key] + delta, min, max);
+        const cost = trackingCost(candidate, faceWorld, faceNormalWorld);
+        if (cost < bestCost) {
+          best = candidate;
+          bestCost = cost;
+        }
+      });
+    });
+  }
+
+  return {
+    j1: Math.round(best.j1),
+    j2: Math.round(best.j2),
+    j3: Math.round(best.j3),
+    j4: Math.round(-faceRoll),
+    jg: Math.round(best.jg)
+  };
+}
+
+function applyFaceControls() {
+  const on = document.getElementById('faceOn').checked;
+  const x = +document.getElementById('faceX').value;
+  const y = +document.getElementById('faceY').value;
+  const z = +document.getElementById('faceZ').value;
+  const yaw = +document.getElementById('faceYaw').value;
+  const roll = +document.getElementById('faceRoll').value;
+  faceTarget.visible = on;
+  faceTarget.position.set(x, y, z);
+  faceTarget.rotation.y = deg(yaw);
+  faceHead.rotation.z = deg(roll);
+  document.getElementById('faceXv').textContent = x.toFixed(2);
+  document.getElementById('faceYv').textContent = y.toFixed(2);
+  document.getElementById('faceZv').textContent = z.toFixed(2);
+  document.getElementById('faceYawv').textContent = yaw + '°';
+  document.getElementById('faceRollv').textContent = roll + '°';
+}
+
+function mechanismPoseFromAngles(j2, j3) {
+  const t2 = deg(j2);
+  const t3 = deg(j3);
+  const Ey = S_y + L_arm * Math.cos(t2);
+  const Ez = S_z + L_arm * Math.sin(t2);
+  const Py = R_y + L_j3Crank * Math.cos(t3);
+  const Pz = R_z + L_j3Crank * Math.sin(t3);
+  const couplerY = -0.38;
+  const couplerRadius = Math.abs(couplerY);
+  const dY = Py - Ey;
+  const dZ = Pz - Ez;
+  const d = Math.max(0.0001, Math.hypot(dY, dZ));
+  const a = (couplerRadius * couplerRadius - L_j3Rod * L_j3Rod + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, couplerRadius * couplerRadius - a * a));
+  const uY = dY / d;
+  const uZ = dZ / d;
+  const baseY = Ey + a * uY;
+  const baseZ = Ez + a * uZ;
+  const c1Y = baseY - h * uZ;
+  const c1Z = baseZ + h * uY;
+  const c2Y = baseY + h * uZ;
+  const c2Z = baseZ - h * uY;
+  const useFirst = c1Z < c2Z;
+  const Cy = useFirst ? c1Y : c2Y;
+  const Cz = useFirst ? c1Z : c2Z;
+  const faRot = Math.atan2((Cz - Ez) / couplerY, (Cy - Ey) / couplerY);
+  const forearmAngle = Math.PI / 2 - faRot;
+  return { t2, t3, Ey, Ez, Py, Pz, Cy, Cz, faRot, forearmAngle };
+}
+
+function mechanismPotentialEnergy(j2, j3) {
+  const pose = mechanismPoseFromAngles(j2, j3);
+  const gravity = 9.80665;
+  const mass = {
+    upperArm: 0.13,
+    crankRod: 0.07,
+    forearm: 0.18,
+    wristPhone: 0.32
+  };
+  const upperY = S_y + (L_arm * 0.48) * Math.cos(pose.t2);
+  const crankRodY = (pose.Py + pose.Cy) / 2;
+  const forearmY = pose.Ey + (L_fa * 0.48) * Math.sin(pose.forearmAngle);
+  const wristPhoneY = pose.Ey + (L_fa + 0.12) * Math.sin(pose.forearmAngle);
+  return gravity * (
+    mass.upperArm * upperY +
+    mass.crankRod * crankRodY +
+    mass.forearm * forearmY +
+    mass.wristPhone * wristPhoneY
+  );
+}
+
+function estimateJointTorques(values, dt) {
+  const eps = 0.25;
+  const dRad = deg(eps * 2);
+  const staticJ2 = Math.abs((mechanismPotentialEnergy(values.j2 + eps, values.j3) - mechanismPotentialEnergy(values.j2 - eps, values.j3)) / dRad);
+  const staticJ3 = Math.abs((mechanismPotentialEnergy(values.j2, values.j3 + eps) - mechanismPotentialEnergy(values.j2, values.j3 - eps)) / dRad);
+  const previous = torquePrev;
+  const speed = {};
+  ['j1', 'j2', 'j3', 'j4', 'jg'].forEach(id => {
+    const current = values[id];
+    const lastValue = previous ? previous.values[id] : current;
+    const diff = id === 'j1' ? ((current - lastValue + 540) % 360) - 180 : current - lastValue;
+    speed[id] = Math.abs(deg(diff) / Math.max(dt, 0.016));
+  });
+  torquePrev = { values: { ...values } };
+
+  return {
+    j1: 0.025 + speed.j1 * 0.018,
+    j2: staticJ2 + speed.j2 * 0.025,
+    j3: staticJ3 + speed.j3 * 0.022,
+    j4: Math.abs(Math.sin(deg(values.j4))) * 0.05 + speed.j4 * 0.016 + 0.018,
+    jg: Math.abs(Math.sin(deg(values.jg))) * 0.13 + speed.jg * 0.018 + 0.024
+  };
+}
+
+function updateMotorTorqueGraph(values, dt) {
+  const torquesNm = estimateJointTorques(values, dt);
+  const torques = Object.fromEntries(
+    Object.entries(torquesNm).map(([id, value]) => [id, value * NM_TO_KG_CM])
+  );
+  const rect = motorChart.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(320, Math.round(rect.width * ratio));
+  const height = Math.max(220, Math.round(rect.height * ratio));
+  if (motorChart.width !== width || motorChart.height !== height) {
+    motorChart.width = width;
+    motorChart.height = height;
+  }
+  const maxPoints = 120;
+  motorGraphFrame += 1;
+  motorSpecs.forEach(spec => {
+    const value = torques[spec.id];
+    const level = clamp(value / TORQUE_GRAPH_MAX, 0, 1);
+    const history = motorHistory[spec.id];
+    history.push(value);
+    if (history.length > maxPoints) history.shift();
+    document.getElementById(spec.id + 'bar').style.setProperty('--level', level.toFixed(3));
+    document.getElementById(spec.id + 'barv').textContent = value.toFixed(2);
+  });
+
+  const ctx = motorCtx;
+  ctx.clearRect(0, 0, width, height);
+  ctx.save();
+  ctx.scale(ratio, ratio);
+  const cssW = width / ratio;
+  const cssH = height / ratio;
+  const padL = 44;
+  const padR = 16;
+  const padT = 36;
+  const padB = 30;
+  const chartW = cssW - padL - padR;
+  const chartH = cssH - padT - padB;
+  const chartMax = TORQUE_GRAPH_MAX;
+
+  ctx.fillStyle = '#26313f';
+  ctx.font = '800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Torque Estimate', padL, 18);
+
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.32)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + chartH * (i / 4);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + chartW, y);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= 8; i++) {
+    const x = padL + chartW * (i / 8);
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + chartH);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '700 10px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const label = (chartMax * (1 - i / 4)).toFixed(0);
+    ctx.fillText(label, padL - 8, padT + chartH * (i / 4));
+  }
+
+  let legendX = padL + 118;
+  motorSpecs.forEach(spec => {
+    ctx.fillStyle = spec.color;
+    ctx.fillRect(legendX, 9, 8, 8);
+    ctx.fillStyle = '#526070';
+    ctx.font = '700 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(spec.label, legendX + 12, 17);
+    legendX += spec.label === 'Tilt' ? 48 : 36;
+  });
+
+  motorSpecs.forEach(spec => {
+    const history = motorHistory[spec.id];
+    if (history.length < 2) return;
+    ctx.beginPath();
+    let lastX = 0;
+    let lastY = 0;
+    history.forEach((torque, i) => {
+      const level = clamp(torque / chartMax, 0, 1);
+      const x = padL + chartW * ((maxPoints - history.length + i) / (maxPoints - 1));
+      const y = padT + chartH * (1 - level);
+      lastX = x;
+      lastY = y;
+      if (i === 0) ctx.moveTo(x, y);
+      else {
+        const prevTorque = history[i - 1];
+        const prevLevel = clamp(prevTorque / chartMax, 0, 1);
+        const prevX = padL + chartW * ((maxPoints - history.length + i - 1) / (maxPoints - 1));
+        const prevY = padT + chartH * (1 - prevLevel);
+        ctx.quadraticCurveTo(prevX, prevY, (prevX + x) / 2, (prevY + y) / 2);
+      }
+    });
+    ctx.lineTo(lastX, lastY);
+    ctx.strokeStyle = spec.color;
+    ctx.lineWidth = spec.id === 'j2' || spec.id === 'j3' ? 2.2 : 1.7;
+    ctx.stroke();
+    ctx.fillStyle = spec.color;
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  const pulseX = padL + chartW - ((motorGraphFrame % 30) / 30) * 18;
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.22)';
+  ctx.beginPath();
+  ctx.moveTo(pulseX, padT);
+  ctx.lineTo(pulseX, padT + chartH);
+  ctx.stroke();
+
+  ctx.fillStyle = '#475569';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText('TORQUE kg.cm', padL, cssH - 8);
+  ctx.restore();
+}
+
+function getMotorInputValues() {
+  return {
+    j1: +document.getElementById('j1').value,
+    j2: +document.getElementById('j2').value,
+    j3: +document.getElementById('j3').value,
+    j4: +document.getElementById('j4').value,
+    jg: +document.getElementById('jg').value
+  };
+}
+
+function readSliders() {
+  const a1 = +document.getElementById('j1').value;
+  const a2 = +document.getElementById('j2').value;
+  const a3 = +document.getElementById('j3').value;
+  const a4 = +document.getElementById('j4').value;
+  const gr = +document.getElementById('jg').value;
+  document.getElementById('j1v').textContent = a1 + '°';
+  document.getElementById('j2v').textContent = a2 + '°';
+  document.getElementById('j3v').textContent = a3 + '°';
+  document.getElementById('j4v').textContent = a4 + '°';
+  document.getElementById('jgv').textContent = gr + '°';
+  applyAngles(a1, a2, a3, a4, gr);
+}
+
+function moveSliderToward(id, target, rate, dt) {
+  const current = +document.getElementById(id).value;
+  const delta = clamp(target - current, -rate * dt, rate * dt);
+  setSliderValue(id, (current + delta).toFixed(2));
+}
+
+function moveAngle360Toward(id, target, rate, dt) {
+  const current = +document.getElementById(id).value;
+  const diff = ((target - current + 540) % 360) - 180;
+  const delta = clamp(diff, -rate * dt, rate * dt);
+  setSliderValue(id, ((current + delta) % 360 + 360) % 360);
+}
+
+function stepFaceTracking(dt) {
+  const target = updateFaceTrackingMotors();
+  if (!target) return;
+  moveAngle360Toward('j1', target.j1, 150, dt);
+  moveSliderToward('j2', target.j2, 45, dt);
+  moveSliderToward('j3', target.j3, 90, dt);
+  moveSliderToward('j4', target.j4, 90, dt);
+  moveSliderToward('jg', target.jg, 60, dt);
+  readSliders();
+}
+
+function stepRobotPose(target, dt) {
+  moveAngle360Toward('j1', target.j1, 70, dt);
+  moveSliderToward('j2', target.j2, 24, dt);
+  moveSliderToward('j3', target.j3, 42, dt);
+  moveSliderToward('j4', target.j4, 45, dt);
+  moveSliderToward('jg', target.jg, 28, dt);
+  readSliders();
+}
+
+function snapFaceTrackingMotors() {
+  const target = updateFaceTrackingMotors();
+  if (!target) return;
+  setSliderValue('j1', target.j1);
+  setSliderValue('j2', target.j2);
+  setSliderValue('j3', target.j3);
+  setSliderValue('j4', target.j4);
+  setSliderValue('jg', target.jg);
+  readSliders();
+}
+['j1', 'j2', 'j3', 'j4', 'jg'].forEach(id =>
+  document.getElementById(id).addEventListener('input', readSliders)
+);
+['faceX', 'faceY', 'faceZ', 'faceYaw', 'faceRoll'].forEach(id =>
+  document.getElementById(id).addEventListener('input', applyFaceControls)
+);
+document.getElementById('faceOn').addEventListener('change', applyFaceControls);
+document.getElementById('btnBoot').addEventListener('click', () => {
+  if (phoneState === 'off') startPhoneBoot();
+  else powerOffPhone();
+});
+document.getElementById('btnFaceTrack').addEventListener('click', () => setAutoFaceTrack(!autoFaceTrack));
+
+function getViewerPresentationPose() {
+  const currentPose = {
+    j1: +document.getElementById('j1').value,
+    j2: +document.getElementById('j2').value,
+    j3: +document.getElementById('j3').value,
+    j4: +document.getElementById('j4').value,
+    jg: +document.getElementById('jg').value
+  };
+  const basePose = {
+    j1: (radToDeg(Math.atan2(camera.position.x, camera.position.z)) + 360) % 360,
+    j2: 34,
+    j3: 285,
+    j4: 0,
+    jg: 0
+  };
+  let best = { ...basePose };
+  let bestCost = Infinity;
+
+  for (let j1 = 0; j1 < 360; j1 += 15) {
+    for (let j4 = -90; j4 <= 90; j4 += 10) {
+      for (let jg = -80; jg <= 80; jg += 8) {
+        const candidate = { ...basePose, j1, j4, jg };
+        applyAngles(candidate.j1, candidate.j2, candidate.j3, candidate.j4, candidate.jg);
+        const phone = getPhonePoseWorld();
+        const toViewer = camera.position.clone().sub(phone.point).normalize();
+        const normalCost = 1 - phone.normal.dot(toViewer);
+        const baseCost = Math.abs(((j1 - basePose.j1 + 540) % 360) - 180) * 0.0008;
+        const tiltCost = Math.abs(jg) * 0.0012 + Math.abs(j4) * 0.0008;
+        const cost = normalCost + baseCost + tiltCost;
+        if (cost < bestCost) {
+          best = candidate;
+          bestCost = cost;
+        }
+      }
+    }
+  }
+  applyAngles(currentPose.j1, currentPose.j2, currentPose.j3, currentPose.j4, currentPose.jg);
+  return best;
+}
+
+const autoDemoPath = [
+  { t: 0.0,  pose: { j1: 0,   j2: 25, j3: 260, j4: 0,   jg: 0 } },
+  { t: 1.2,  pose: { j1: 0,   j2: 36, j3: 285, j4: 0,   jg: -8 } },
+  { t: 3.0,  pose: { j1: 52,  j2: 50, j3: 306, j4: -28, jg: -16 } },
+  { t: 4.2,  pose: { j1: 82,  j2: 22, j3: 248, j4: -42, jg: 10 } },
+  { t: 6.2,  pose: { j1: 168, j2: 34, j3: 292, j4: 24,  jg: -12 } },
+  { t: 7.4,  pose: { j1: 212, j2: 56, j3: 318, j4: 44,  jg: -22 } },
+  { t: 9.4,  pose: { j1: 305, j2: 42, j3: 288, j4: -18, jg: 12 } },
+  { t: 11.2, pose: { j1: 360, j2: 25, j3: 260, j4: 0,   jg: 0 } }
+];
+const autoDemoDuration = autoDemoPath[autoDemoPath.length - 1].t;
+
+function lerpAngle360(a, b, t) {
+  const diff = ((b - a + 540) % 360) - 180;
+  return ((a + diff * t) % 360 + 360) % 360;
+}
+
+function interpolateAutoDemoPose(time) {
+  const t = time % autoDemoDuration;
+  let a = autoDemoPath[0];
+  let b = autoDemoPath[autoDemoPath.length - 1];
+  for (let i = 0; i < autoDemoPath.length - 1; i++) {
+    if (t >= autoDemoPath[i].t && t <= autoDemoPath[i + 1].t) {
+      a = autoDemoPath[i];
+      b = autoDemoPath[i + 1];
+      break;
+    }
+  }
+  const p = easeInOut((t - a.t) / Math.max(0.001, b.t - a.t));
+  return {
+    j1: lerpAngle360(a.pose.j1, b.pose.j1, p),
+    j2: a.pose.j2 + (b.pose.j2 - a.pose.j2) * p,
+    j3: a.pose.j3 + (b.pose.j3 - a.pose.j3) * p,
+    j4: a.pose.j4 + (b.pose.j4 - a.pose.j4) * p,
+    jg: a.pose.jg + (b.pose.jg - a.pose.jg) * p
+  };
+}
+
+let mode = 'idle', animT = 0, personOrbit = false, personOrbitTime = 0, personOrbitBooted = false;
+let personOrbitPresentingToViewer = false;
+document.getElementById('btnReset').addEventListener('click', () => {
+  mode = 'idle';
+  personOrbit = false;
+  personOrbitTime = 0;
+  personOrbitBooted = false;
+  personOrbitPresentingToViewer = false;
+  document.getElementById('btnAnim').textContent = '자동 데모 ▶';
+  document.getElementById('btnAnim').classList.remove('active');
+  document.getElementById('btnPersonOrbit').textContent = '사람 궤도 데모 ▶';
+  document.getElementById('btnPersonOrbit').classList.remove('active');
+  document.getElementById('j1').value = 0;
+  document.getElementById('j2').value = 25;
+  document.getElementById('j3').value = 260;
+  document.getElementById('j4').value = 0;
+  document.getElementById('jg').value = 0;
+  document.getElementById('faceOn').checked = true;
+  document.getElementById('faceX').value = -1.45;
+  document.getElementById('faceY').value = 0.1;
+  document.getElementById('faceZ').value = 0.52;
+  document.getElementById('faceYaw').value = 60;
+  document.getElementById('faceRoll').value = 0;
+  powerOffPhone();
+  setAutoFaceTrack(false);
+  applyFaceControls();
+  readSliders();
+});
+document.getElementById('btnAnim').addEventListener('click', () => {
+  if (mode === 'auto') {
+    mode = 'idle';
+    document.getElementById('btnAnim').textContent = '자동 데모 ▶';
+    document.getElementById('btnAnim').classList.remove('active');
+  } else {
+    mode = 'auto';
+    animT = 0;
+    personOrbit = false;
+    personOrbitTime = 0;
+    personOrbitBooted = false;
+    personOrbitPresentingToViewer = false;
+    document.getElementById('btnPersonOrbit').textContent = '사람 궤도 데모 ▶';
+    document.getElementById('btnPersonOrbit').classList.remove('active');
+    setAutoFaceTrack(false);
+    document.getElementById('btnAnim').textContent = '정지 ■';
+    document.getElementById('btnAnim').classList.add('active');
+  }
+});
+document.getElementById('btnPersonOrbit').addEventListener('click', () => {
+  mode = 'idle';
+  document.getElementById('btnAnim').textContent = '자동 데모 ▶';
+  document.getElementById('btnAnim').classList.remove('active');
+  personOrbit = !personOrbit;
+  personOrbitTime = 0;
+  personOrbitBooted = false;
+  personOrbitPresentingToViewer = false;
+  document.getElementById('btnPersonOrbit').textContent = personOrbit ? '사람 궤도 정지 ■' : '사람 궤도 데모 ▶';
+  document.getElementById('btnPersonOrbit').classList.toggle('active', personOrbit);
+  if (personOrbit) {
+    powerOffPhone();
+    document.getElementById('faceOn').checked = true;
+    updatePersonOrbit(0);
+    setAutoFaceTrack(true);
+    snapFaceTrackingMotors();
+  }
+});
+
+function updatePersonOrbit(dt) {
+  personOrbitTime += dt;
+
+  const startHold = 1.0;
+  const orbitDuration = 8.2;
+  const waitAfterOrbit = 1.0;
+  const liftDuration = 3.6;
+  const waitAfterLift = 1.0;
+  const distanceDuration = 3.4;
+  const waitAfterDistance = 1.0;
+  const rollDuration = 4.4;
+  const waitAfterRoll = 1.0;
+  const presentationDuration = 4.2;
+  const waitAfterPresentation = 1.0;
+
+  const motionTime = Math.max(0, personOrbitTime - startHold);
+
+  const liftStart = orbitDuration + waitAfterOrbit;
+  const distanceStart = liftStart + liftDuration + waitAfterLift;
+  const rollStart = distanceStart + distanceDuration + waitAfterDistance;
+  const presentationStart = rollStart + rollDuration + waitAfterRoll;
+  const bootStart = presentationStart + presentationDuration + waitAfterPresentation;
+  personOrbitPresentingToViewer = motionTime >= presentationStart;
+
+  const orbitPhase = clamp(motionTime / orbitDuration, 0, 1);
+  const liftPhase = easeInOut((motionTime - liftStart) / liftDuration);
+  const distancePhase = (motionTime - distanceStart) / distanceDuration;
+  const rollPhase = (motionTime - rollStart) / rollDuration;
+
+  const orbitAngle = orbitPhase * Math.PI * 1.5;
+  const radius = 1.6 - oneShotSine(distancePhase) * 0.5;
+  const liftAfterOrbit = liftPhase * 0.8;
+  const roll = doubleRightThenLeftRoll(rollPhase) * 28;
+
+  const x = Math.cos(orbitAngle) * radius;
+  const z = Math.sin(orbitAngle) * radius;
+  const y = 0.1 + liftAfterOrbit;
+  const yaw = radToDeg(Math.atan2(-x, -z));
+  document.getElementById('faceX').value = x.toFixed(2);
+  document.getElementById('faceY').value = y.toFixed(2);
+  document.getElementById('faceZ').value = z.toFixed(2);
+  document.getElementById('faceYaw').value = Math.round(yaw);
+  document.getElementById('faceRoll').value = Math.round(roll);
+  applyFaceControls();
+
+  if (personOrbitPresentingToViewer) {
+    document.getElementById('faceOn').checked = false;
+    applyFaceControls();
+    setAutoFaceTrack(false);
+  }
+  if (!personOrbitBooted && motionTime >= bootStart) {
+    personOrbitBooted = true;
+    if (phoneState === 'off') startPhoneBoot();
+  }
+}
+
+let last = performance.now();
+function render() {
+  requestAnimationFrame(render);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  if (personOrbit) updatePersonOrbit(dt);
+
+  const holdingPersonOrbitStart = personOrbit && personOrbitTime < 1.0;
+  screenNormalArrow.visible = !(autoFaceTrack || personOrbitPresentingToViewer);
+  if (personOrbitPresentingToViewer) {
+    stepRobotPose(getViewerPresentationPose(), dt);
+  } else if (autoFaceTrack && faceTarget.visible && !holdingPersonOrbitStart) {
+    stepFaceTracking(dt);
+  } else if (mode === 'auto') {
+    animT += dt;
+    const pose = interpolateAutoDemoPose(animT);
+    document.getElementById('j1').value = Math.round(pose.j1);
+    document.getElementById('j2').value = Math.round(pose.j2);
+    document.getElementById('j3').value = Math.round(pose.j3);
+    document.getElementById('j4').value = Math.round(pose.j4);
+    document.getElementById('jg').value = Math.round(pose.jg);
+    readSliders();
+  }
+  updateMotorTorqueGraph(getMotorInputValues(), dt);
+  
+  renderer.render(scene, camera);
+}
+
+setPhoneState('home');
+applyFaceControls();
+readSliders();
+updateCam();
+render();
+</script>
+</body>
+</html>

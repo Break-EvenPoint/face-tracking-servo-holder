@@ -1,0 +1,9 @@
+# Flask relay (relay/server.py)
+Flask>=2.0
+flask-cors>=3.0
+requests>=2.25
+
+# Offline mechanism simulation (simulation/simul.py)
+numpy>=1.21
+matplotlib>=3.5
+pyvista>=0.43
